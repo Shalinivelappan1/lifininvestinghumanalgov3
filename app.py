@@ -191,7 +191,6 @@ if st.button("▶️ Run Next Round"):
         # Short selling ban
         if market["short_selling_ban"] and action == "SELL":
             if human["pos"][asset] - qty < 0:
-                trade_log_round.append([market["round"], team, asset, action, qty, price])
                 continue
 
         if action == "BUY":
@@ -274,44 +273,38 @@ if st.button("▶️ Run Next Round"):
             trade_log_round.append([market["round"], bname, asset, action, qty, price])
 
     # -------------------------------
+    # 3. PRICE FORMATION + MARKET-WIDE CIRCUIT BREAKER
     # -------------------------------
-# 3. PRICE FORMATION + MARKET-WIDE CIRCUIT BREAKER
-# -------------------------------
-triggered = False
-new_prices = {}
+    triggered = False
+    new_prices = {}
 
-# First compute proposed prices
-for asset in ["ABC", "XYZ"]:
-    old_price = market["assets"][asset]["price"]
-    market["assets"][asset]["history"].append(old_price)
-
-    if market["assets"][asset]["halted"]:
-        new_prices[asset] = old_price
-        continue
-
-    imbalance = buy_vol[asset] - sell_vol[asset]
-    new_price = max(1.0, old_price + imbalance / 40.0)
-    new_prices[asset] = new_price
-
-# Check if ANY breaches circuit breaker
-for asset in ["ABC", "XYZ"]:
-    ref = market["assets"][asset]["cb_ref"]
-    if abs(new_prices[asset] - ref) / ref > market["circuit_breaker_pct"]:
-        triggered = True
-
-# If triggered → halt ALL
-if triggered:
+    # Compute proposed prices
     for asset in ["ABC", "XYZ"]:
-        market["assets"][asset]["halted"] = True
-else:
-    # Otherwise apply prices normally
+        old_price = market["assets"][asset]["price"]
+        market["assets"][asset]["history"].append(old_price)
+
+        if market["assets"][asset]["halted"]:
+            new_prices[asset] = old_price
+            continue
+
+        imbalance = buy_vol[asset] - sell_vol[asset]
+        new_price = max(1.0, old_price + imbalance / 40.0)
+        new_prices[asset] = new_price
+
+    # Check breaker
     for asset in ["ABC", "XYZ"]:
-        market["assets"][asset]["price"] = new_prices[asset]
-        market["assets"][asset]["cb_ref"] = new_prices[asset]
+        ref = market["assets"][asset]["cb_ref"]
+        if abs(new_prices[asset] - ref) / ref > market["circuit_breaker_pct"]:
+            triggered = True
 
-    # -------------------------------
-
-
+    # Apply or halt
+    if triggered:
+        for asset in ["ABC", "XYZ"]:
+            market["assets"][asset]["halted"] = True
+    else:
+        for asset in ["ABC", "XYZ"]:
+            market["assets"][asset]["price"] = new_prices[asset]
+            market["assets"][asset]["cb_ref"] = new_prices[asset]
 
     # -------------------------------
     # 4. SAVE LOGS & P&L
@@ -326,7 +319,7 @@ else:
     market["round"] += 1
 
 # =====================================================
-# CHARTS, LEADERBOARD, P&L, LOG (same as before)
+# CHARTS, LEADERBOARD, P&L, LOG
 # =====================================================
 st.subheader("📈 Price History")
 
@@ -376,9 +369,9 @@ else:
 
 st.info("""
 Now includes:
-• 🛑 Circuit breaker (halts trading after large moves)
-• 🚫 Short-selling ban (no negative positions)
-• 😈 Reckless fund that amplifies both bubbles and crashes
+• 🛑 MARKET-WIDE circuit breaker (if any asset breaches → ALL halt)
+• 🚫 Short-selling ban
+• 😈 Reckless fund amplifying bubbles and crashes
 
-This is now a proper Market Microstructure + Regulation lab.
+This is a complete Human vs Algo + Regulation teaching lab.
 """)
