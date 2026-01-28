@@ -274,25 +274,40 @@ if st.button("▶️ Run Next Round"):
             trade_log_round.append([market["round"], bname, asset, action, qty, price])
 
     # -------------------------------
-    # 3. PRICE FORMATION + CIRCUIT BREAKER
     # -------------------------------
+# 3. PRICE FORMATION + MARKET-WIDE CIRCUIT BREAKER
+# -------------------------------
+triggered = False
+new_prices = {}
+
+# First compute proposed prices
+for asset in ["ABC", "XYZ"]:
+    old_price = market["assets"][asset]["price"]
+    market["assets"][asset]["history"].append(old_price)
+
+    if market["assets"][asset]["halted"]:
+        new_prices[asset] = old_price
+        continue
+
+    imbalance = buy_vol[asset] - sell_vol[asset]
+    new_price = max(1.0, old_price + imbalance / 40.0)
+    new_prices[asset] = new_price
+
+# Check if ANY breaches circuit breaker
+for asset in ["ABC", "XYZ"]:
+    ref = market["assets"][asset]["cb_ref"]
+    if abs(new_prices[asset] - ref) / ref > market["circuit_breaker_pct"]:
+        triggered = True
+
+# If triggered → halt ALL
+if triggered:
     for asset in ["ABC", "XYZ"]:
-        old_price = market["assets"][asset]["price"]
-        market["assets"][asset]["history"].append(old_price)
-
-        if market["assets"][asset]["halted"]:
-            continue
-
-        imbalance = buy_vol[asset] - sell_vol[asset]
-        new_price = max(1.0, old_price + imbalance / 40.0)
-
-        ref = market["assets"][asset]["cb_ref"]
-
-        if abs(new_price - ref) / ref > market["circuit_breaker_pct"]:
-            market["assets"][asset]["halted"] = True
-        else:
-            market["assets"][asset]["price"] = new_price
-            market["assets"][asset]["cb_ref"] = new_price
+        market["assets"][asset]["halted"] = True
+else:
+    # Otherwise apply prices normally
+    for asset in ["ABC", "XYZ"]:
+        market["assets"][asset]["price"] = new_prices[asset]
+        market["assets"][asset]["cb_ref"] = new_prices[asset]
 
     # -------------------------------
     # 4. SAVE LOGS & P&L
