@@ -310,6 +310,10 @@ else:
         market["assets"][asset]["cb_ref"] = new_prices[asset]
 
     # -------------------------------
+
+
+
+    # -------------------------------
     # 4. SAVE LOGS & P&L
     # -------------------------------
     market["trade_log"].extend(trade_log_round)
